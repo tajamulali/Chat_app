@@ -113,16 +113,20 @@ def user_interface():
             if authenticate_user(username, password):
                 print("Logged in successfully.")
                 if username == 'A':
-                    start_chat(private_key, public_key)
+                    start_chat('A', private_key, public_key)
                 elif username == 'B':
-                    start_chat(private_key, public_key)
+                    start_chat('B', private_key, public_key)
             else:
                 print("Authentication failed.")
         elif choice == '3':
             break
 
-def start_chat(private_key, public_key):
-    choice = input("1. Send Message\n2. Receive Message\nChoose an option: ")
+def start_chat(user, private_key, public_key):
+    if user == 'A':
+        recipient = 'B'
+    else:
+        recipient = 'A'
+    choice = input(f"1. Send Message to {recipient}\n2. Exit\nChoose an option: ")
     if choice == '1':
         host = input("Enter recipient IP: ")
         port = int(input("Enter recipient port: "))
@@ -130,16 +134,9 @@ def start_chat(private_key, public_key):
             s.connect((host, port))
             message = input("Enter message: ")
             send_message(s, private_key, public_key, message)
+            start_chat(user, private_key, public_key)
     elif choice == '2':
-        host = '0.0.0.0'
-        port = int(input("Enter port to listen on: "))
-        with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
-            s.bind((host, port))
-            s.listen()
-            conn, addr = s.accept()
-            with conn:
-                receive_message(conn, private_key, public_key)
+        pass
 
 if __name__ == "__main__":
     user_interface()
-
