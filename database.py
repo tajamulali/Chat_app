@@ -13,12 +13,17 @@ def init_db():
     conn.close()
 
 def register_user(username, password_hash, public_key):
-    conn = sqlite3.connect('chat.db')
-    c = conn.cursor()
-    c.execute("INSERT INTO users (username, password_hash, public_key) VALUES (?, ?, ?)",
-              (username, password_hash, str(public_key)))
-    conn.commit()
-    conn.close()
+    try:
+        conn = sqlite3.connect('chat.db')
+        c = conn.cursor()
+        c.execute("INSERT INTO users (username, password_hash, public_key) VALUES (?, ?, ?)",
+                  (username, password_hash, str(public_key)))
+        conn.commit()
+        conn.close()
+        print("User registered successfully")  # Debugging print statement
+    except sqlite3.Error as e:
+        print("Error registering user:", e)  # Print error message
+
 
 def get_user_by_username(username):
     conn = sqlite3.connect('chat.db')
