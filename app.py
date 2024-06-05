@@ -1,78 +1,68 @@
-from flask import Flask, request, jsonify
-import sqlite3
-import hashlib
-import os
-from rsa_utils import generate_rsa_keypair, rsa_sign, rsa_verify
+from rsa_utils import generate_key_pair, sign_message, verify_message
+from auth_utils import hash_password, verify_password
+from database import init_db, register_user, get_user_by_username, send_message, receive_messages
 
-app = Flask(__name__)
-DATABASE = 'chatapp.db'
+def register(username, password):
+    public_key, private_key = generate_key_pair()
+    hashed_password = hash_password(password)
+    register_user(username, hashed_password, public_key)
+    return private_key
 
-def get_db():
-    conn = sqlite3.connect(DATABASE)
-    return conn
+def login(username, password):
+    user = get_user_by_username(username)
+    if user and verify_password(user[1], password):
+        return user[0], eval(user[2])  # Returning user ID and public key
+    return None, None
 
-@app.route('/register', methods=['POST'])
-def register():
-    username = request.json['username']
-    password = request.json['password']
-    
-    # Hash the password with a salt
-    salt = os.urandom(16)
-    password_hash = hashlib.pbkdf2_hmac('sha256', password.encode(), salt, 100000)
-    
-    # Generate RSA keys
-    (public_key, private_key) = generate_rsa_keypair(2048)
-    
-    try:
-        with get_db() as conn:
-            cursor = conn.cursor()
-            cursor.execute('INSERT INTO users (username, password_hash, public_key) VALUES (?, ?, ?)', 
-                           (username, salt + password_hash, str(public_key)))
-            conn.commit()
-            return jsonify({'private_key': str(private_key)}), 201
-    except sqlite3.IntegrityError:
-        return jsonify({'error': 'Username already exists'}), 400
+def main():
+    init_db()
 
-@app.route('/send', methods=['POST'])
-def send_message():
-    sender_id = request.json['sender_id']
-    receiver_id = request.json['receiver_id']
-    message = request.json['message']
-    private_key = eval(request.json['private_key'])  # Converting string back to tuple
-    
-    # Create message hash
-    message_hash = hashlib.sha256(message.encode()).digest()
-    
-    # Sign the message hash
-    signature = rsa_sign(message_hash, private_key)
-    
-    with get_db() as conn:
-        cursor = conn.cursor()
-        cursor.execute('INSERT INTO messages (sender_id, receiver_id, message, signature) VALUES (?, ?, ?, ?)', 
-                       (sender_id, receiver_id, message, signature))
-        conn.commit()
+    print("Chat Application")
+    while True:
+        action = input("Do you want to (register/login/exit): ").strip().lower()
+        if action == 'register':
+            username = input("Enter username: ")
+            password = input("Enter password: ")
+            private_key = register(username, password)
+            print(f"User {username} registered successfully. Keep your private key safe.")
+            print(f"Private Key: {private_key}")
 
-    return jsonify({'status': 'Message sent'}), 200
+        elif action == 'login':
+            username = input("Enter username: ")
+            password = input("Enter password: ")
+            user_id, public_key = login(username, password)
+            if user_id:
+                print(f"Welcome, {username}!")
+                while True:
+                    command = input("Do you want to (send/receive/logout): ").strip().lower()
+                    if command == 'send':
+                        receiver = input("Enter receiver's username: ")
+                        receiver_user = get_user_by_username(receiver)
+                        if receiver_user:
+                            message = input("Enter your message: ")
+                            signature = sign_message(private_key, message)
+                            send_message(user_id, receiver_user[0], message, signature)
+                            print("Message sent!")
+                        else:
+                            print("Receiver not found.")
+                    elif command == 'receive':
+                        messages = receive_messages(user_id)
+                        for sender_id, message, signature in messages:
+                            sender_user = get_user_by_username(sender_id)
+                            is_valid = verify_message(eval(sender_user[2]), message, int(signature))
+                            print(f"Message from {sender_user[0]}: {message}, Signature valid: {is_valid}")
+                    elif command == 'logout':
+                        break
+                    else:
+                        print("Invalid command.")
+            else:
+                print("Invalid username or password.")
 
-@app.route('/receive', methods=['POST'])
-def receive_message():
-    message_id = request.json['message_id']
-    with get_db() as conn:
-        cursor = conn.cursor()
-        cursor.execute('SELECT sender_id, message, signature FROM messages WHERE id = ?', (message_id,))
-        row = cursor.fetchone()
+        elif action == 'exit':
+            break
 
-    sender_id, message, signature = row
-    
-    cursor.execute('SELECT public_key FROM users WHERE id = ?', (sender_id,))
-    sender_public_key = eval(cursor.fetchone()[0])  # Converting string back to tuple
-    
-    message_hash = hashlib.sha256(message.encode()).digest()
-    
-    if rsa_verify(message_hash, signature, sender_public_key):
-        return jsonify({'message': message, 'status': 'Verified'}), 200
-    else:
-        return jsonify({'error': 'Signature verification failed'}), 400
+        else:
+            print("Invalid action.")
 
 if __name__ == '__main__':
-    app.run(debug=True)
+    main()
