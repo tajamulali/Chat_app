@@ -3,15 +3,22 @@ from auth_utils import hash_password, verify_password
 from database import init_db, register_user, get_user_by_username, send_message, receive_messages
 
 def register(username, password):
+    print("Registering user...")  # Debugging print statement
     public_key, private_key = generate_key_pair()
+    print("Generated key pair")  # Debugging print statement
     hashed_password = hash_password(password)
+    print("Hashed password")  # Debugging print statement
     register_user(username, hashed_password, public_key)
+    print("User registered successfully")  # Debugging print statement
     return private_key
 
 def login(username, password):
     user = get_user_by_username(username)
+    print("User:", user)  # Debugging print statement
     if user and verify_password(user[1], password):
+        print("Verification successful")  # Debugging print statement
         return user[0], eval(user[2])  # Returning user ID and public key
+    print("Login failed")  # Debugging print statement
     return None, None
 
 def main():
