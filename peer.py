@@ -1,6 +1,7 @@
 import socket
 import threading
-import json
+from rsa import generate_rsa_keys, sign_rsa, verify_rsa
+from database import save_message, get_messages
 
 class Peer:
     def __init__(self, host, port):
@@ -10,6 +11,9 @@ class Peer:
         self.server_socket.bind((self.host, self.port))
         self.server_socket.listen(5)
         self.peers = {}  # Dictionary to keep track of connected peers
+        self.username = None
+        self.public_key = None
+        self.private_key = None
         print(f"Peer started on {self.host}:{self.port}")
 
     def start(self):
@@ -45,7 +49,11 @@ class Peer:
             client_socket.send(f"LOGIN {username} {password}".encode('utf-8'))
             response = client_socket.recv(1024).decode('utf-8')
             print(response)
-            return response == "Login successful"
+            if response == "Login successful":
+                self.username = username
+                self.public_key, self.private_key = generate_rsa_keys()
+                return True
+            return False
 
     def connect_to_peer(self, peer_address):
         peer_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
@@ -55,7 +63,14 @@ class Peer:
     def send_message(self, peer_address, message):
         if peer_address in self.peers:
             peer_socket = self.peers[peer_address]
-            peer_socket.send(message.encode('utf-8'))
+            signature = sign_rsa(self.private_key, message)
+            signed_message = {
+                'message': message,
+                'signature': signature,
+                'username': self.username
+            }
+            peer_socket.send(json.dumps(signed_message).encode('utf-8'))
+            save_message(self.username, message)
         else:
             print("Peer not connected")
 
@@ -100,7 +115,8 @@ def main():
     while True:
         print("1. Connect to peer")
         print("2. Send message")
-        print("3. Exit")
+        print("3. View messages")
+        print("4. Exit")
         choice = input("Choose an option: ")
 
         if choice == "1":
@@ -115,6 +131,11 @@ def main():
             peer.send_message((peer_host, peer_port), message)
 
         elif choice == "3":
+            messages = get_messages(peer.username)
+            for msg in messages:
+                print(f"{msg[1]}: {msg[2]}")
+
+        elif choice == "4":
             break
 
 if __name__ == "__main__":
