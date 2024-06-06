@@ -135,9 +135,9 @@ def main():
             messages = get_messages(peer.username)
             for msg in messages:
                 if len(msg) >= 3:  # Ensure msg has at least three elements
-                print(f"{msg[1]}: {msg[2]}")
-            else:
-                print("Invalid message format")
+                    print(f"{msg[1]}: {msg[2]}")
+                else:
+                    print("Invalid message format")
 
 
         elif choice == "4":
