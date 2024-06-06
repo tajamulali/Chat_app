@@ -43,10 +43,18 @@ class Peer:
 
 def main():
     host = "127.0.0.1"
-    port = 8888
+    base_port = 8888
     server_address = ("127.0.0.1", 9999)
 
-    peer = Peer(host, port)
+    # Ask the user for a unique port number for this peer
+    while True:
+        try:
+            port = int(input(f"Enter a unique port number for this peer (default {base_port}): ") or base_port)
+            peer = Peer(host, port)
+            break
+        except OSError:
+            print(f"Port {port} is already in use, please choose another one.")
+            base_port += 1
 
     while True:
         print("1. Register")
