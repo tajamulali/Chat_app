@@ -1,5 +1,6 @@
 import socket
 import threading
+import json  # Add the json import
 from rsa import generate_rsa_keys, sign_rsa, verify_rsa
 from database import save_message, get_messages
 
