@@ -11,37 +11,55 @@ def setup_db():
             password_hash TEXT
         )
     ''')
+    c.execute('''
+        CREATE TABLE IF NOT EXISTS messages (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            username TEXT,
+            message TEXT
+        )
+    ''')
     conn.commit()
     conn.close()
 
-def hash_password(password):
-    return hashlib.sha256(password.encode()).hexdigest()
-
 def register_user(username, password):
-    password_hash = hash_password(password)
-
     conn = sqlite3.connect('chat_app.db')
     c = conn.cursor()
     try:
-        c.execute('INSERT INTO users (username, password_hash) VALUES (?, ?)', (username, password_hash))
+        c.execute('INSERT INTO users (username, password_hash) VALUES (?, ?)', (username, hash_password(password)))
         conn.commit()
+        return True
     except sqlite3.IntegrityError:
         return False
     finally:
         conn.close()
-    return True
-
-def get_user(username):
-    conn = sqlite3.connect('chat_app.db')
-    c = conn.cursor()
-    c.execute('SELECT * FROM users WHERE username = ?', (username,))
-    user = c.fetchone()
-    conn.close()
-    return user
 
 def validate_login(username, password):
-    password_hash = hash_password(password)
-    user = get_user(username)
-    if user and user[2] == password_hash:
-        return True
+    conn = sqlite3.connect('chat_app.db')
+    c = conn.cursor()
+    c.execute('SELECT password_hash FROM users WHERE username = ?', (username,))
+    row = c.fetchone()
+    conn.close()
+    if row:
+        return verify_password(row[0], password)
     return False
+
+def hash_password(password):
+    return hashlib.sha256(password.encode()).hexdigest()
+
+def verify_password(stored_password, provided_password):
+    return stored_password == hash_password(provided_password)
+
+def save_message(username, message):
+    conn = sqlite3.connect('chat_app.db')
+    c = conn.cursor()
+    c.execute('INSERT INTO messages (username, message) VALUES (?, ?)', (username, message))
+    conn.commit()
+    conn.close()
+
+def get_messages(username):
+    conn = sqlite3.connect('chat_app.db')
+    c = conn.cursor()
+    c.execute('SELECT username, message FROM messages WHERE username = ?', (username,))
+    messages = c.fetchall()
+    conn.close()
+    return messages
