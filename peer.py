@@ -1,5 +1,6 @@
 import socket
 import threading
+import json
 
 class Peer:
     def __init__(self, host, port):
@@ -8,6 +9,7 @@ class Peer:
         self.server_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
         self.server_socket.bind((self.host, self.port))
         self.server_socket.listen(5)
+        self.peers = {}  # Dictionary to keep track of connected peers
         print(f"Peer started on {self.host}:{self.port}")
 
     def start(self):
@@ -19,8 +21,12 @@ class Peer:
     def handle_connection(self, client_socket):
         while True:
             try:
-                # Handle peer-to-peer communication here
-                pass
+                message = client_socket.recv(1024).decode('utf-8')
+                if message:
+                    print(f"Received message: {message}")
+                else:
+                    client_socket.close()
+                    break
             except Exception as e:
                 print(f"Error handling connection: {str(e)}")
                 client_socket.close()
@@ -40,6 +46,18 @@ class Peer:
             response = client_socket.recv(1024).decode('utf-8')
             print(response)
             return response == "Login successful"
+
+    def connect_to_peer(self, peer_address):
+        peer_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+        peer_socket.connect(peer_address)
+        self.peers[peer_address] = peer_socket
+
+    def send_message(self, peer_address, message):
+        if peer_address in self.peers:
+            peer_socket = self.peers[peer_address]
+            peer_socket.send(message.encode('utf-8'))
+        else:
+            print("Peer not connected")
 
 def main():
     host = "127.0.0.1"
@@ -75,6 +93,26 @@ def main():
                 # After login, start the peer server to accept connections
                 threading.Thread(target=peer.start).start()
                 break
+
+        elif choice == "3":
+            break
+
+    while True:
+        print("1. Connect to peer")
+        print("2. Send message")
+        print("3. Exit")
+        choice = input("Choose an option: ")
+
+        if choice == "1":
+            peer_host = input("Enter peer's host address: ")
+            peer_port = int(input("Enter peer's port: "))
+            peer.connect_to_peer((peer_host, peer_port))
+
+        elif choice == "2":
+            peer_host = input("Enter peer's host address: ")
+            peer_port = int(input("Enter peer's port: "))
+            message = input("Enter message: ")
+            peer.send_message((peer_host, peer_port), message)
 
         elif choice == "3":
             break
