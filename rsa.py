@@ -1,44 +1,26 @@
 import random
-from sympy import isprime, mod_inverse
 
-def generate_prime_candidate(length):
-    p = random.getrandbits(length)
-    p |= (1 << length - 1) | 1
-    return p
-
-def generate_prime_number(length=1024):
-    p = 4
-    while not isprime(p):
-        p = generate_prime_candidate(length)
-    return p
-
-def generate_rsa_keys(bits=1024):
-    p = generate_prime_number(bits // 2)
-    q = generate_prime_number(bits // 2)
+def generate_keys():
+    # This is a simplified RSA key generation for educational purposes.
+    p = 61
+    q = 53
     n = p * q
     phi = (p - 1) * (q - 1)
+    e = 17  # Choose e
+    d = pow(e, -1, phi)
+    public_key = (e, n)
+    private_key = (d, n)
+    return public_key, private_key
 
-    e = 65537
-    d = mod_inverse(e, phi)
-
-    return (e, n), (d, n)
-
-def encrypt_rsa(public_key, plaintext):
-    e, n = public_key
-    plaintext_bytes = plaintext.encode('utf-8')
-    plaintext_int = int.from_bytes(plaintext_bytes, byteorder='big')
-    ciphertext_int = pow(plaintext_int, e, n)
-    return ciphertext_int
-
-def decrypt_rsa(private_key, ciphertext):
+def sign_message(private_key, message):
     d, n = private_key
-    plaintext_int = pow(ciphertext, d, n)
-    plaintext_bytes = plaintext_int.to_bytes((plaintext_int.bit_length() + 7) // 8, byteorder='big')
-    return plaintext_bytes.decode('utf-8')
+    message_int = int.from_bytes(message.encode(), 'big')
+    signature = pow(message_int, d, n)
+    return hex(signature)
 
-def sign_rsa(private_key, message):
-    return encrypt_rsa(private_key, message)
-
-def verify_rsa(public_key, message, signature):
-    decrypted_message = decrypt_rsa(public_key, signature)
-    return decrypted_message == message
+def verify_signature(public_key, message, signature):
+    e, n = public_key
+    message_int = int.from_bytes(message.encode(), 'big')
+    signature_int = int(signature, 16)
+    verified_message = pow(signature_int, e, n)
+    return message_int == verified_message

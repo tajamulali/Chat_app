@@ -1,8 +1,13 @@
 import socket
 import threading
-import json  # Add the json import
-from rsa import generate_rsa_keys, sign_rsa, verify_rsa
-from database import save_message, get_messages
+import json
+from database import create_user_table, create_message_table, register_user, validate_login, save_message, get_messages
+from hash import simple_hash
+from rsa import generate_keys, sign_message, verify_signature
+
+# Initialize the database tables
+create_user_table()
+create_message_table()
 
 class Peer:
     def __init__(self, host, port):
@@ -11,10 +16,9 @@ class Peer:
         self.server_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
         self.server_socket.bind((self.host, self.port))
         self.server_socket.listen(5)
-        self.peers = {}  # Dictionary to keep track of connected peers
+        self.peers = {}
         self.username = None
-        self.public_key = None
-        self.private_key = None
+        self.public_key, self.private_key = generate_keys()
         print(f"Peer started on {self.host}:{self.port}")
 
     def start(self):
@@ -28,7 +32,15 @@ class Peer:
             try:
                 message = client_socket.recv(1024).decode('utf-8')
                 if message:
-                    print(f"Received message: {message}")
+                    signed_message = json.loads(message)
+                    received_message = signed_message['message']
+                    signature = signed_message['signature']
+                    username = signed_message['username']
+                    print(f"Received message from {username}: {received_message}")
+                    if verify_signature(username, received_message, signature):
+                        save_message(username, received_message)
+                    else:
+                        print("Invalid signature")
                 else:
                     client_socket.close()
                     break
@@ -37,111 +49,75 @@ class Peer:
                 client_socket.close()
                 break
 
+    def send_message(self, peer_address, message):
+        signed_message = {
+            'username': self.username,
+            'message': message,
+            'signature': sign_message(self.private_key, message)
+        }
+        try:
+            peer_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+            peer_socket.connect(peer_address)
+            peer_socket.send(json.dumps(signed_message).encode('utf-8'))
+            peer_socket.close()
+        except Exception as e:
+            print(f"Error sending message: {str(e)}")
+
     def register(self, username, password, server_address):
+        self.username = username
         with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as client_socket:
             client_socket.connect(server_address)
             client_socket.send(f"REGISTER {username} {password}".encode('utf-8'))
             response = client_socket.recv(1024).decode('utf-8')
             print(response)
+            return "successful" in response
 
     def login(self, username, password, server_address):
+        self.username = username
         with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as client_socket:
             client_socket.connect(server_address)
             client_socket.send(f"LOGIN {username} {password}".encode('utf-8'))
             response = client_socket.recv(1024).decode('utf-8')
             print(response)
-            if response == "Login successful":
-                self.username = username
-                self.public_key, self.private_key = generate_rsa_keys()
-                return True
-            return False
-
-    def connect_to_peer(self, peer_address):
-        peer_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-        peer_socket.connect(peer_address)
-        self.peers[peer_address] = peer_socket
-
-    def send_message(self, peer_address, message):
-        if peer_address in self.peers:
-            peer_socket = self.peers[peer_address]
-            signature = sign_rsa(self.private_key, message)
-            signed_message = {
-                'message': message,
-                'signature': signature,
-                'username': self.username
-            }
-            peer_socket.send(json.dumps(signed_message).encode('utf-8'))
-            save_message(self.username, message)
-        else:
-            print("Peer not connected")
+            return "successful" in response
 
 def main():
-    host = "127.0.0.1"
-    base_port = 8888
-    server_address = ("127.0.0.1", 9999)
+    peer_host = input("Enter peer host (e.g., 127.0.0.1): ")
+    peer_port = int(input("Enter peer port (e.g., 8888): "))
 
-    # Ask the user for a unique port number for this peer
-    while True:
-        try:
-            port = int(input(f"Enter a unique port number for this peer (default {base_port}): ") or base_port)
-            peer = Peer(host, port)
-            break
-        except OSError:
-            print(f"Port {port} is already in use, please choose another one.")
-            base_port += 1
+    peer = Peer(peer_host, peer_port)
 
     while True:
         print("1. Register")
         print("2. Login")
-        print("3. Exit")
-        choice = input("Choose an option: ")
-
-        if choice == "1":
-            username = input("Enter username: ")
-            password = input("Enter password: ")
-            peer.register(username, password, server_address)
-
-        elif choice == "2":
-            username = input("Enter username: ")
-            password = input("Enter password: ")
-            if peer.login(username, password, server_address):
-                print("Login successful! You can now send and receive messages.")
-                # After login, start the peer server to accept connections
-                threading.Thread(target=peer.start).start()
-                break
-
-        elif choice == "3":
-            break
-
-    while True:
-        print("1. Connect to peer")
-        print("2. Send message")
-        print("3. View messages")
+        print("3. Send Message")
         print("4. Exit")
-        choice = input("Choose an option: ")
+        choice = input("Enter your choice: ")
 
         if choice == "1":
-            peer_host = input("Enter peer's host address: ")
-            peer_port = int(input("Enter peer's port: "))
-            peer.connect_to_peer((peer_host, peer_port))
-
+            username = input("Enter username: ")
+            password = input("Enter password: ")
+            if peer.register(username, password, ("127.0.0.1", 9999)):
+                print("Registration successful")
+            else:
+                print("Registration failed")
         elif choice == "2":
-            peer_host = input("Enter peer's host address: ")
-            peer_port = int(input("Enter peer's port: "))
+            username = input("Enter username: ")
+            password = input("Enter password: ")
+            if peer.login(username, password, ("127.0.0.1", 9999)):
+                print("Login successful")
+                threading.Thread(target=peer.start).start()  # Start listening for incoming connections
+            else:
+                print("Login failed")
+        elif choice == "3":
+            peer_host = input("Enter peer host to send message to: ")
+            peer_port = int(input("Enter peer port to send message to: "))
             message = input("Enter message: ")
             peer.send_message((peer_host, peer_port), message)
-
-        elif choice == "3":
-            messages = get_messages(peer.username)
-            for msg in messages:
-                if len(msg) >= 3:  # Ensure msg has at least three elements
-                    print(f"{msg[1]}: {msg[2]}")
-                else:
-                    print("Invalid message format")
-
-
         elif choice == "4":
             break
+        else:
+            print("Invalid choice")
 
 if __name__ == "__main__":
     main()
