@@ -29,28 +29,34 @@ class Peer:
             threading.Thread(target=self.handle_connection, args=(client_socket,)).start()
 
     def handle_connection(self, client_socket):
-        while True:
-            try:
-                message = client_socket.recv(1024).decode('utf-8')
-                if message:
-                    signed_message = json.loads(message)
-                    received_message = signed_message.get('message')
-                    signature = signed_message.get('signature')
-                    username = signed_message.get('username')
-                    if username not in self.peer_public_keys:
-                        self.peer_public_keys[username] = json.loads(get_public_key(username))
-                    if username in self.peer_public_keys and verify_signature(self.peer_public_keys[username], received_message, signature):
-                        print(f"Received message from {username}: {received_message}")
+    while True:
+        try:
+            message = client_socket.recv(1024).decode('utf-8')
+            if message:
+                signed_message = json.loads(message)
+                received_message = signed_message.get('message')
+                signature = signed_message.get('signature')
+                username = signed_message.get('username')
+                print(f"Received signed message from {username}: {received_message}")
+                if username not in self.peer_public_keys:
+                    self.peer_public_keys[username] = json.loads(get_public_key(username))
+                if username in self.peer_public_keys:
+                    public_key = self.peer_public_keys[username]
+                    if verify_signature(public_key, received_message, signature):
+                        print("Signature verified successfully")
                         save_message(username, received_message)
                     else:
-                        print("Invalid signature or unknown user")
+                        print("Invalid signature")
                 else:
-                    client_socket.close()
-                    break
-            except Exception as e:
-                print(f"Error handling connection: {e}")
+                    print("Unknown user")
+            else:
                 client_socket.close()
                 break
+        except Exception as e:
+            print(f"Error handling connection: {e}")
+            client_socket.close()
+            break
+
 
     def register(self, username, password, server_address):
         with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as client_socket:
