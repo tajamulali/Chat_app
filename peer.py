@@ -2,7 +2,7 @@ import socket
 import threading
 import json
 from database import create_user_table, create_message_table, register_user, validate_login, save_message, get_messages
-from simple_hash import simple_hash
+from hash import simple_hash
 from rsa import generate_keys, sign_message, verify_signature
 
 # Initialize the database tables
