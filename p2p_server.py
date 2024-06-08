@@ -10,14 +10,14 @@ def handle_client(client_socket):
     try:
         message = client_socket.recv(1024).decode('utf-8')
         if message.startswith("REGISTER"):
-            _, username, password, public_key = message.split()
+            _, username, password, public_key = message.split(maxsplit=3)
             if register_user(username, password):
                 store_public_key(username, public_key)
                 client_socket.send("Registration successful".encode('utf-8'))
             else:
                 client_socket.send("Registration failed".encode('utf-8'))
         elif message.startswith("LOGIN"):
-            _, username, password = message.split()
+            _, username, password = message.split(maxsplit=2)
             if validate_login(username, password):
                 public_key = get_public_key(username)
                 client_socket.send(f"Login successful {public_key}".encode('utf-8'))
