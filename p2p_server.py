@@ -1,6 +1,6 @@
 import socket
 import threading
-from database import create_user_table, create_message_table, register_user, validate_login
+from database import create_user_table, create_message_table, register_user, validate_login, store_public_key, get_public_key
 
 # Initialize the database tables
 create_user_table()
@@ -8,25 +8,23 @@ create_message_table()
 
 def handle_client(client_socket):
     try:
-        request = client_socket.recv(1024).decode('utf-8')
-        parts = request.split()
-        command = parts[0]
-        if command == "REGISTER":
-            username = parts[1]
-            password = parts[2]
+        message = client_socket.recv(1024).decode('utf-8')
+        if message.startswith("REGISTER"):
+            _, username, password, public_key = message.split()
             if register_user(username, password):
+                store_public_key(username, public_key)
                 client_socket.send("Registration successful".encode('utf-8'))
             else:
                 client_socket.send("Registration failed".encode('utf-8'))
-        elif command == "LOGIN":
-            username = parts[1]
-            password = parts[2]
+        elif message.startswith("LOGIN"):
+            _, username, password = message.split()
             if validate_login(username, password):
-                client_socket.send("Login successful".encode('utf-8'))
+                public_key = get_public_key(username)
+                client_socket.send(f"Login successful {public_key}".encode('utf-8'))
             else:
                 client_socket.send("Login failed".encode('utf-8'))
     except Exception as e:
-        print(f"Error handling client: {str(e)}")
+        print(f"Error handling client: {e}")
     finally:
         client_socket.close()
 
