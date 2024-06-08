@@ -1,8 +1,8 @@
 import socket
 import threading
 import json
-from database import create_user_table, create_message_table, register_user, validate_login, save_message, get_messages
-from hash import simple_hash
+from database import create_user_table, create_message_table, register_user, validate_login, save_message, get_messages, get_public_key
+from simple_hash import simple_hash
 from rsa import generate_keys, sign_message, verify_signature
 
 # Initialize the database tables
@@ -37,6 +37,8 @@ class Peer:
                     received_message = signed_message['message']
                     signature = signed_message['signature']
                     username = signed_message['username']
+                    if username not in self.peer_public_keys:
+                        self.peer_public_keys[username] = get_public_key(username)
                     if username in self.peer_public_keys and verify_signature(self.peer_public_keys[username], received_message, signature):
                         print(f"Received message from {username}: {received_message}")
                         save_message(username, received_message)
