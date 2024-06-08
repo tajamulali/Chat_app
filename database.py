@@ -1,5 +1,5 @@
 import sqlite3
-from hash import simple_hash
+from hash import simple_hash  # Import the simple hash function
 
 def create_user_table():
     conn = sqlite3.connect('chat_app.db')
