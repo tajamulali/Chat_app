@@ -2,7 +2,7 @@ import socket
 import threading
 import json
 from database import create_user_table, create_message_table, register_user, validate_login, save_message, get_messages
-from hash import simple_hash
+from simple_hash import simple_hash
 from rsa import generate_keys, sign_message, verify_signature
 
 # Initialize the database tables
@@ -19,6 +19,7 @@ class Peer:
         self.peers = {}
         self.username = None
         self.public_key, self.private_key = generate_keys()
+        self.peer_public_keys = {}
         print(f"Peer started on {self.host}:{self.port}")
 
     def start(self):
@@ -36,50 +37,51 @@ class Peer:
                     received_message = signed_message['message']
                     signature = signed_message['signature']
                     username = signed_message['username']
-                    print(f"Received message from {username}: {received_message}")
-                    if verify_signature(username, received_message, signature):
+                    if username in self.peer_public_keys and verify_signature(self.peer_public_keys[username], received_message, signature):
+                        print(f"Received message from {username}: {received_message}")
                         save_message(username, received_message)
                     else:
-                        print("Invalid signature")
+                        print("Invalid signature or unknown user")
                 else:
                     client_socket.close()
                     break
             except Exception as e:
-                print(f"Error handling connection: {str(e)}")
+                print(f"Error handling connection: {e}")
                 client_socket.close()
                 break
 
-    def send_message(self, peer_address, message):
-        signed_message = {
-            'username': self.username,
-            'message': message,
-            'signature': sign_message(self.private_key, message)
-        }
-        try:
-            peer_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-            peer_socket.connect(peer_address)
-            peer_socket.send(json.dumps(signed_message).encode('utf-8'))
-            peer_socket.close()
-        except Exception as e:
-            print(f"Error sending message: {str(e)}")
-
     def register(self, username, password, server_address):
-        self.username = username
         with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as client_socket:
             client_socket.connect(server_address)
-            client_socket.send(f"REGISTER {username} {password}".encode('utf-8'))
+            public_key_str = json.dumps(self.public_key)
+            client_socket.send(f"REGISTER {username} {password} {public_key_str}".encode('utf-8'))
             response = client_socket.recv(1024).decode('utf-8')
             print(response)
-            return "successful" in response
+            return response == "Registration successful"
 
     def login(self, username, password, server_address):
-        self.username = username
         with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as client_socket:
             client_socket.connect(server_address)
             client_socket.send(f"LOGIN {username} {password}".encode('utf-8'))
             response = client_socket.recv(1024).decode('utf-8')
             print(response)
-            return "successful" in response
+            if response.startswith("Login successful"):
+                self.username = username
+                public_key_str = response.split(" ", 2)[2]
+                self.peer_public_keys[username] = json.loads(public_key_str)
+                return True
+            return False
+
+    def send_message(self, peer_address, message):
+        if self.username:
+            signed_message = {
+                'username': self.username,
+                'message': message,
+                'signature': sign_message(self.private_key, message)
+            }
+            with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as peer_socket:
+                peer_socket.connect(peer_address)
+                peer_socket.send(json.dumps(signed_message).encode('utf-8'))
 
 def main():
     peer_host = input("Enter peer host (e.g., 127.0.0.1): ")
@@ -121,3 +123,4 @@ def main():
 
 if __name__ == "__main__":
     main()
+
