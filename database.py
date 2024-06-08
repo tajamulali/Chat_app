@@ -8,7 +8,8 @@ def create_user_table():
         CREATE TABLE IF NOT EXISTS users (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
             username TEXT UNIQUE,
-            password_hash TEXT
+            password_hash TEXT,
+            public_key TEXT
         )
     ''')
     conn.commit()
@@ -71,3 +72,18 @@ def get_messages(username):
     messages = c.fetchall()
     conn.close()
     return messages
+
+def store_public_key(username, public_key):
+    conn = sqlite3.connect('chat_app.db')
+    c = conn.cursor()
+    c.execute('UPDATE users SET public_key = ? WHERE username = ?', (public_key, username))
+    conn.commit()
+    conn.close()
+
+def get_public_key(username):
+    conn = sqlite3.connect('chat_app.db')
+    c = conn.cursor()
+    c.execute('SELECT public_key FROM users WHERE username = ?', (username,))
+    row = c.fetchone()
+    conn.close()
+    return row[0] if row else None
