@@ -28,12 +28,11 @@ def create_message_table():
     conn.commit()
     conn.close()
 
-def register_user(username, password, public_key):
+def register_user(username, password_hash, public_key):
     conn = sqlite3.connect('chat_app.db')
     c = conn.cursor()
     try:
-        hashed_password = simple_hash(password)
-        c.execute('INSERT INTO users (username, password, public_key) VALUES (?, ?, ?)', (username, hashed_password, public_key))
+        c.execute('INSERT INTO users (username, password, public_key) VALUES (?, ?, ?)', (username, password_hash, public_key))
         conn.commit()
         return True
     except sqlite3.IntegrityError:
@@ -44,8 +43,7 @@ def register_user(username, password, public_key):
 def validate_login(username, password):
     conn = sqlite3.connect('chat_app.db')
     c = conn.cursor()
-    hashed_password = simple_hash(password)
-    c.execute('SELECT * FROM users WHERE username = ? AND password = ?', (username, hashed_password))
+    c.execute('SELECT * FROM users WHERE username = ? AND password = ?', (username, password))
     user = c.fetchone()
     conn.close()
     return user is not None
@@ -79,4 +77,3 @@ def get_public_key(username):
     row = c.fetchone()
     conn.close()
     return row[0] if row else None
-    
