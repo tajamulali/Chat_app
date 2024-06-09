@@ -15,6 +15,7 @@ def create_user_table():
     conn.commit()
     conn.close()
 
+
 def create_message_table():
     conn = sqlite3.connect('chat_app.db')
     c = conn.cursor()
