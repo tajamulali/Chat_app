@@ -3,6 +3,7 @@ import threading
 import json
 from database import create_user_table, create_message_table, register_user, validate_login, save_message, get_public_key
 from rsa import generate_keys, sign_message, verify_signature
+from hash import simple_hash
 
 # Initialize the database tables
 create_user_table()
@@ -57,25 +58,37 @@ class Peer:
                 break
 
     def register(self, username, password, server_address):
-        with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as client_socket:
-            client_socket.connect(server_address)
-            public_key_str = json.dumps(self.public_key)
-            client_socket.send(f"REGISTER {username} {simple_hash(password)} {public_key_str}".encode('utf-8'))
-            response = client_socket.recv(1024).decode('utf-8')
-            print(response)
-            return response == "Registration successful"
+        try:
+            with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as client_socket:
+                client_socket.connect(server_address)
+                public_key_str = json.dumps(self.public_key)
+                message = f"REGISTER {username} {simple_hash(password)} {public_key_str}"
+                print(f"Sending registration message: {message}")
+                client_socket.send(message.encode('utf-8'))
+                response = client_socket.recv(1024).decode('utf-8')
+                print(f"Received registration response: {response}")
+                return response == "Registration successful"
+        except Exception as e:
+            print(f"Error during registration: {e}")
+            return False
 
     def login(self, username, password, server_address):
-        with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as client_socket:
-            client_socket.connect(server_address)
-            client_socket.send(f"LOGIN {username} {simple_hash(password)}".encode('utf-8'))
-            response = client_socket.recv(1024).decode('utf-8')
-            print(response)
-            if response.startswith("Login successful"):
-                self.username = username
-                public_key_str = response.split(" ", 2)[2]
-                self.peer_public_keys[username] = json.loads(public_key_str)
-                return True
+        try:
+            with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as client_socket:
+                client_socket.connect(server_address)
+                message = f"LOGIN {username} {simple_hash(password)}"
+                print(f"Sending login message: {message}")
+                client_socket.send(message.encode('utf-8'))
+                response = client_socket.recv(1024).decode('utf-8')
+                print(f"Received login response: {response}")
+                if response.startswith("Login successful"):
+                    self.username = username
+                    public_key_str = response.split(" ", 2)[2]
+                    self.peer_public_keys[username] = json.loads(public_key_str)
+                    return True
+                return False
+        except Exception as e:
+            print(f"Error during login: {e}")
             return False
 
     def send_message(self, peer_address, message):
