@@ -1,8 +1,7 @@
 import socket
 import threading
 import json
-from database import create_user_table, create_message_table, register_user, validate_login, save_message, get_messages, store_public_key, get_public_key
-from hash import simple_hash
+from database import create_user_table, create_message_table, register_user, validate_login, save_message, get_public_key
 from rsa import generate_keys, sign_message, verify_signature
 
 # Initialize the database tables
@@ -61,7 +60,7 @@ class Peer:
         with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as client_socket:
             client_socket.connect(server_address)
             public_key_str = json.dumps(self.public_key)
-            client_socket.send(f"REGISTER {username} {password} {public_key_str}".encode('utf-8'))
+            client_socket.send(f"REGISTER {username} {simple_hash(password)} {public_key_str}".encode('utf-8'))
             response = client_socket.recv(1024).decode('utf-8')
             print(response)
             return response == "Registration successful"
@@ -69,7 +68,7 @@ class Peer:
     def login(self, username, password, server_address):
         with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as client_socket:
             client_socket.connect(server_address)
-            client_socket.send(f"LOGIN {username} {password}".encode('utf-8'))
+            client_socket.send(f"LOGIN {username} {simple_hash(password)}".encode('utf-8'))
             response = client_socket.recv(1024).decode('utf-8')
             print(response)
             if response.startswith("Login successful"):
@@ -130,4 +129,3 @@ def main():
 
 if __name__ == "__main__":
     main()
-
