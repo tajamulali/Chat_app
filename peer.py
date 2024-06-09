@@ -1,7 +1,7 @@
 import socket
 import threading
 import json
-from database import create_user_table, create_message_table, register_user, validate_login, save_message, get_messages, get_public_key
+from database import create_user_table, create_message_table, register_user, validate_login, save_message, get_messages, store_public_key, get_public_key
 from hash import simple_hash
 from rsa import generate_keys, sign_message, verify_signature
 
@@ -29,34 +29,33 @@ class Peer:
             threading.Thread(target=self.handle_connection, args=(client_socket,)).start()
 
     def handle_connection(self, client_socket):
-    while True:
-        try:
-            message = client_socket.recv(1024).decode('utf-8')
-            if message:
-                signed_message = json.loads(message)
-                received_message = signed_message.get('message')
-                signature = signed_message.get('signature')
-                username = signed_message.get('username')
-                print(f"Received signed message from {username}: {received_message}")
-                if username not in self.peer_public_keys:
-                    self.peer_public_keys[username] = json.loads(get_public_key(username))
-                if username in self.peer_public_keys:
-                    public_key = self.peer_public_keys[username]
-                    if verify_signature(public_key, received_message, signature):
-                        print("Signature verified successfully")
-                        save_message(username, received_message)
+        while True:
+            try:
+                message = client_socket.recv(1024).decode('utf-8')
+                if message:
+                    signed_message = json.loads(message)
+                    received_message = signed_message.get('message')
+                    signature = signed_message.get('signature')
+                    username = signed_message.get('username')
+                    print(f"Received signed message from {username}: {received_message}")
+                    if username not in self.peer_public_keys:
+                        self.peer_public_keys[username] = get_public_key(username)
+                    if username in self.peer_public_keys:
+                        public_key = self.peer_public_keys[username]
+                        if verify_signature(public_key, received_message, signature):
+                            print("Signature verified successfully")
+                            save_message(username, received_message)
+                        else:
+                            print("Invalid signature")
                     else:
-                        print("Invalid signature")
+                        print("Unknown user")
                 else:
-                    print("Unknown user")
-            else:
+                    client_socket.close()
+                    break
+            except Exception as e:
+                print(f"Error handling connection: {e}")
                 client_socket.close()
                 break
-        except Exception as e:
-            print(f"Error handling connection: {e}")
-            client_socket.close()
-            break
-
 
     def register(self, username, password, server_address):
         with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as client_socket:
@@ -131,3 +130,4 @@ def main():
 
 if __name__ == "__main__":
     main()
+
