@@ -1,5 +1,5 @@
 import sqlite3
-from hash import simple_hash  # Import the simple hash function
+from hash import simple_hash
 
 def create_user_table():
     conn = sqlite3.connect('chat_app.db')
@@ -7,9 +7,9 @@ def create_user_table():
     c.execute('''
         CREATE TABLE IF NOT EXISTS users (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
-            username TEXT UNIQUE,
-            password_hash TEXT,
-            public_key TEXT
+            username TEXT NOT NULL UNIQUE,
+            password TEXT NOT NULL,
+            public_key TEXT NOT NULL
         )
     ''')
     conn.commit()
@@ -21,22 +21,19 @@ def create_message_table():
     c.execute('''
         CREATE TABLE IF NOT EXISTS messages (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
-            sender TEXT,
-            message TEXT
+            sender TEXT NOT NULL,
+            message TEXT NOT NULL
         )
     ''')
     conn.commit()
     conn.close()
 
-def hash_password(password):
-    return simple_hash(password)
-
-def register_user(username, password):
+def register_user(username, password, public_key):
     conn = sqlite3.connect('chat_app.db')
     c = conn.cursor()
     try:
-        hashed_password = hash_password(password)
-        c.execute('INSERT INTO users (username, password_hash) VALUES (?, ?)', (username, hashed_password))
+        hashed_password = simple_hash(password)
+        c.execute('INSERT INTO users (username, password, public_key) VALUES (?, ?, ?)', (username, hashed_password, public_key))
         conn.commit()
         return True
     except sqlite3.IntegrityError:
@@ -44,19 +41,14 @@ def register_user(username, password):
     finally:
         conn.close()
 
-def verify_password(stored_password, provided_password):
-    return stored_password == hash_password(provided_password)
-
 def validate_login(username, password):
     conn = sqlite3.connect('chat_app.db')
     c = conn.cursor()
-    c.execute('SELECT password_hash FROM users WHERE username = ?', (username,))
-    row = c.fetchone()
+    hashed_password = simple_hash(password)
+    c.execute('SELECT * FROM users WHERE username = ? AND password = ?', (username, hashed_password))
+    user = c.fetchone()
     conn.close()
-    if row:
-        stored_password = row[0]
-        return verify_password(stored_password, password)
-    return False
+    return user is not None
 
 def save_message(sender, message):
     conn = sqlite3.connect('chat_app.db')
@@ -65,10 +57,10 @@ def save_message(sender, message):
     conn.commit()
     conn.close()
 
-def get_messages(username):
+def get_messages():
     conn = sqlite3.connect('chat_app.db')
     c = conn.cursor()
-    c.execute('SELECT * FROM messages WHERE sender = ?', (username,))
+    c.execute('SELECT * FROM messages')
     messages = c.fetchall()
     conn.close()
     return messages
@@ -87,3 +79,4 @@ def get_public_key(username):
     row = c.fetchone()
     conn.close()
     return row[0] if row else None
+    
