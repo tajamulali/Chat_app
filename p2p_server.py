@@ -1,26 +1,24 @@
 import socket
 import threading
-from database import create_user_table, create_message_table, register_user, validate_login, store_public_key, get_public_key
-
-# Initialize the database tables
-create_user_table()
-create_message_table()
+import json
+from database import register_user, validate_login, store_public_key, get_public_key
 
 def handle_client(client_socket):
     try:
         message = client_socket.recv(1024).decode('utf-8')
         if message.startswith("REGISTER"):
-            _, username, password, public_key = message.split(maxsplit=3)
-            if register_user(username, password):
-                store_public_key(username, public_key)
+            _, username, password_hash, public_key_str = message.split(" ", 3)
+            public_key = json.loads(public_key_str)
+            if register_user(username, password_hash, public_key):
                 client_socket.send("Registration successful".encode('utf-8'))
             else:
                 client_socket.send("Registration failed".encode('utf-8'))
         elif message.startswith("LOGIN"):
-            _, username, password = message.split(maxsplit=2)
-            if validate_login(username, password):
+            _, username, password_hash = message.split(" ", 2)
+            if validate_login(username, password_hash):
                 public_key = get_public_key(username)
-                client_socket.send(f"Login successful {public_key}".encode('utf-8'))
+                response = f"Login successful {json.dumps(public_key)}"
+                client_socket.send(response.encode('utf-8'))
             else:
                 client_socket.send("Login failed".encode('utf-8'))
     except Exception as e:
@@ -28,11 +26,11 @@ def handle_client(client_socket):
     finally:
         client_socket.close()
 
-def start_server():
+def start_server(host='127.0.0.1', port=9999):
     server_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-    server_socket.bind(('127.0.0.1', 9999))
+    server_socket.bind((host, port))
     server_socket.listen(5)
-    print("Server listening on 127.0.0.1:9999")
+    print(f"Server started on {host}:{port}")
 
     while True:
         client_socket, addr = server_socket.accept()
