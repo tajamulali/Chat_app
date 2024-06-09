@@ -30,16 +30,18 @@ def create_message_table():
     conn.close()
 
 def register_user(username, password_hash, public_key):
+    print(f"Attempting to register user: {username}, {password_hash}, {public_key}")
     conn = sqlite3.connect('chat_app.db')
     c = conn.cursor()
     try:
-        c.execute('INSERT INTO users (username, password, public_key) VALUES (?, ?, ?)', (username, str(password_hash), public_key))
+        c.execute('INSERT INTO users (username, password, public_key) VALUES (?, ?, ?)', (username, password_hash, public_key))
         conn.commit()
         return True
     except sqlite3.IntegrityError:
         return False
     finally:
         conn.close()
+
 
 
 def validate_login(username, password):
