@@ -1,5 +1,5 @@
 import sqlite3
-from hash import simple_hash
+from simple_hash import simple_hash
 
 def create_user_table():
     conn = sqlite3.connect('chat_app.db')
@@ -15,7 +15,6 @@ def create_user_table():
     conn.commit()
     conn.close()
 
-
 def create_message_table():
     conn = sqlite3.connect('chat_app.db')
     c = conn.cursor()
@@ -29,12 +28,12 @@ def create_message_table():
     conn.commit()
     conn.close()
 
-def register_user(username, password_hash, public_key):
-    print(f"Attempting to register user: {username}, {password_hash}, {public_key}")
+def register_user(username, password):
+    password_hash = simple_hash(password)
     conn = sqlite3.connect('chat_app.db')
     c = conn.cursor()
     try:
-        c.execute('INSERT INTO users (username, password, public_key) VALUES (?, ?, ?)', (username, password_hash, public_key))
+        c.execute('INSERT INTO users (username, password, public_key) VALUES (?, ?, ?)', (username, password_hash, ""))
         conn.commit()
         return True
     except sqlite3.IntegrityError:
@@ -42,12 +41,11 @@ def register_user(username, password_hash, public_key):
     finally:
         conn.close()
 
-
-
 def validate_login(username, password):
+    password_hash = simple_hash(password)
     conn = sqlite3.connect('chat_app.db')
     c = conn.cursor()
-    c.execute('SELECT * FROM users WHERE username = ? AND password = ?', (username, password))
+    c.execute('SELECT * FROM users WHERE username = ? AND password = ?', (username, password_hash))
     user = c.fetchone()
     conn.close()
     return user is not None
